@@ -549,7 +549,79 @@ textarea:focus { outline: none; border-color: var(--gold); }
       </div>
       <div class="field">
         <label>Language of Instruction</label>
-        <input type="text" id="language" placeholder="e.g. Burmese, English, Tagalog">
+        <select id="language">
+          <option value="">Select language…</option>
+          <optgroup label="Most Common">
+            <option value="English">English</option>
+            <option value="French">French (Français)</option>
+            <option value="Spanish">Spanish (Español)</option>
+            <option value="Arabic">Arabic (العربية)</option>
+            <option value="Portuguese">Portuguese (Português)</option>
+            <option value="Swahili">Swahili (Kiswahili)</option>
+          </optgroup>
+          <optgroup label="Asia & Pacific">
+            <option value="Burmese">Burmese (မြန်မာဘာသာ)</option>
+            <option value="Tagalog">Tagalog / Filipino</option>
+            <option value="Khmer">Khmer (ភាសាខ្មែរ)</option>
+            <option value="Lao">Lao (ພາສາລາວ)</option>
+            <option value="Thai">Thai (ภาษาไทย)</option>
+            <option value="Vietnamese">Vietnamese (Tiếng Việt)</option>
+            <option value="Indonesian">Indonesian (Bahasa Indonesia)</option>
+            <option value="Malay">Malay (Bahasa Melayu)</option>
+            <option value="Hindi">Hindi (हिन्दी)</option>
+            <option value="Bengali">Bengali (বাংলা)</option>
+            <option value="Nepali">Nepali (नेपाली)</option>
+            <option value="Sinhala">Sinhala (සිංහල)</option>
+            <option value="Tamil">Tamil (தமிழ்)</option>
+            <option value="Urdu">Urdu (اردو)</option>
+            <option value="Pashto">Pashto (پښتو)</option>
+            <option value="Dari">Dari (دری)</option>
+            <option value="Tibetan">Tibetan (བོད་སྐད།)</option>
+            <option value="Korean">Korean (한국어)</option>
+            <option value="Chinese (Simplified)">Chinese Simplified (简体中文)</option>
+            <option value="Chinese (Traditional)">Chinese Traditional (繁體中文)</option>
+            <option value="Japanese">Japanese (日本語)</option>
+          </optgroup>
+          <optgroup label="Africa">
+            <option value="Amharic">Amharic (አማርኛ)</option>
+            <option value="Hausa">Hausa</option>
+            <option value="Yoruba">Yoruba</option>
+            <option value="Igbo">Igbo</option>
+            <option value="Zulu">Zulu (isiZulu)</option>
+            <option value="Xhosa">Xhosa (isiXhosa)</option>
+            <option value="Shona">Shona (ChiShona)</option>
+            <option value="Somali">Somali (Soomaali)</option>
+            <option value="Tigrinya">Tigrinya (ትግርኛ)</option>
+            <option value="Oromo">Oromo (Afaan Oromoo)</option>
+            <option value="Kinyarwanda">Kinyarwanda</option>
+            <option value="Kirundi">Kirundi</option>
+            <option value="Lingala">Lingala</option>
+            <option value="Wolof">Wolof</option>
+            <option value="Moore">Mooré</option>
+            <option value="Bambara">Bambara (Bamanankan)</option>
+            <option value="Twi">Twi (Akan)</option>
+            <option value="Dinka">Dinka</option>
+            <option value="Nuer">Nuer</option>
+          </optgroup>
+          <optgroup label="Americas & Caribbean">
+            <option value="Haitian Creole">Haitian Creole (Kreyòl ayisyen)</option>
+            <option value="Quechua">Quechua</option>
+            <option value="Guaraní">Guaraní</option>
+            <option value="Aymara">Aymara</option>
+          </optgroup>
+          <optgroup label="Middle East & Central Asia">
+            <option value="Kurdish">Kurdish (Kurdî)</option>
+            <option value="Azerbaijani">Azerbaijani (Azərbaycan)</option>
+            <option value="Uzbek">Uzbek (O'zbek)</option>
+            <option value="Kazakh">Kazakh (Қазақша)</option>
+            <option value="Kyrgyz">Kyrgyz (Кыргызча)</option>
+            <option value="Tajik">Tajik (Тоҷикӣ)</option>
+            <option value="Turkmen">Turkmen (Türkmençe)</option>
+          </optgroup>
+          <optgroup label="Other">
+            <option value="Other">Other (specify in context box)</option>
+          </optgroup>
+        </select>
       </div>
     </div>
     <div class="field-row">
@@ -564,9 +636,18 @@ textarea:focus { outline: none; border-color: var(--gold); }
     </div>
     <div class="field-row">
       <div class="field">
+        <label>Number of Lessons (차시)</label>
+        <select id="num-lessons">
+          <option value="">Select…</option>
+          ${Array.from({length:100},(_,i)=>`<option value="${i+1}">${i+1} lesson${i>0?'s':''}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
         <label>Number of Students</label>
         <input type="number" id="num-students" placeholder="e.g. 30" min="1">
       </div>
+    </div>
+    <div class="field-row">
       <div class="field">
         <label>Teaching Experience</label>
         <select id="experience">
@@ -756,43 +837,41 @@ async function generateSamples() {
 
   const prompt = `You are an educational content expert helping a teacher in a developing country.
 
-Based on this curriculum content:
+Based on this ACTUAL curriculum content for ${grade} ${subject}:
 ---
 ${curriculumSnippet}
 ---
 
-Generate exactly 5 sample learning items for ${grade} ${subject} students.
-These items will be shown to a teacher to estimate their students' current level.
+Generate exactly 5 practice exercises that are DIRECTLY based on the curriculum content above.
+These must reflect the actual topics, vocabulary, and skills in the uploaded curriculum — NOT generic examples.
 
-Mix of:
-- 2 simple comprehension sentences students would read
-- 2 practice questions students would answer
-- 1 slightly more challenging item
+Rules:
+- All 5 items must come directly from the subject matter in the curriculum (e.g. if math: give math problems; if science: give science questions; if literacy: give reading/writing tasks)
+- Write items in ${language}
+- Mix difficulty: 2 basic, 2 intermediate, 1 challenging
+- Items should be things a student would actually DO (solve, answer, write) — not just read
 
-For each item, respond in this EXACT JSON format (respond ONLY with JSON, no other text):
+Respond in this EXACT JSON format (respond ONLY with JSON, no other text):
 [
-  {"id":1,"type":"sentence","text":"...","difficulty":"basic"},
-  {"id":2,"type":"question","text":"...","difficulty":"basic"},
-  {"id":3,"type":"sentence","text":"...","difficulty":"intermediate"},
-  {"id":4,"type":"question","text":"...","difficulty":"intermediate"},
-  {"id":5,"type":"question","text":"...","difficulty":"challenging"}
-]
-
-Use ${language} language. Keep items appropriate for ${grade} level.`;
+  {"id":1,"type":"exercise","text":"...","difficulty":"basic"},
+  {"id":2,"type":"exercise","text":"...","difficulty":"basic"},
+  {"id":3,"type":"exercise","text":"...","difficulty":"intermediate"},
+  {"id":4,"type":"exercise","text":"...","difficulty":"intermediate"},
+  {"id":5,"type":"exercise","text":"...","difficulty":"challenging"}
+]`;
 
   try {
-    const raw = await callClaude(prompt, 'Generating sample items…', 'Analyzing your curriculum to create representative samples.');
+    const raw = await callClaude(prompt, 'Generating sample exercises…', 'Analyzing your curriculum to create subject-specific practice items.');
     const clean = raw.replace(/```json|```/g, '').trim();
     sampleData = JSON.parse(clean);
     renderSamples();
   } catch(e) {
-    // Fallback samples
     sampleData = [
-      {id:1, type:'sentence', text:'The cat sat on the mat. It was a big, orange cat.', difficulty:'basic'},
-      {id:2, type:'question', text:'How many apples are there if you have 3 and get 2 more?', difficulty:'basic'},
-      {id:3, type:'sentence', text:'Plants need sunlight, water, and soil to grow well.', difficulty:'intermediate'},
-      {id:4, type:'question', text:'Write a sentence using the word "because" to explain why the sky is blue.', difficulty:'intermediate'},
-      {id:5, type:'question', text:'If a farmer has 15 chickens and sells 7, then buys 4 more, how many does he have?', difficulty:'challenging'}
+      {id:1, type:'exercise', text:'(Sample) Complete this: 3 + __ = 7', difficulty:'basic'},
+      {id:2, type:'exercise', text:'(Sample) Write the correct word: The cat ___ on the mat. (sit / sat)', difficulty:'basic'},
+      {id:3, type:'exercise', text:'(Sample) Read and answer: "Plants need sunlight to grow." What do plants need?', difficulty:'intermediate'},
+      {id:4, type:'exercise', text:'(Sample) Solve: A farmer had 15 eggs. He sold 6. How many are left?', difficulty:'intermediate'},
+      {id:5, type:'exercise', text:'(Sample) Write 3 sentences about something you see in nature every day.', difficulty:'challenging'}
     ];
     renderSamples();
   }
@@ -857,6 +936,7 @@ async function generateTextbook() {
   const experience = document.getElementById('experience').value;
   const context = document.getElementById('context').value;
   const numStudents = document.getElementById('num-students').value;
+  const numLessons = document.getElementById('num-lessons').value || '1';
 
   const tooHard = Object.values(levelResponses).filter(v => v === 'too-hard').length;
   const tooEasy = Object.values(levelResponses).filter(v => v === 'too-easy').length;
@@ -879,12 +959,13 @@ CONTEXT:
 - Grade: ${grade}
 - Subject: ${subject}
 - Language of instruction: ${language}
+- Number of lessons (차시): ${numLessons}
 - Number of students: ${numStudents || 'unknown'}
 - Teacher experience: ${experienceLabel}
 - Student level assessment: Students are ${levelNote}
 - Additional context: ${context || 'none'}
 
-Create a complete, ready-to-use textbook unit AND a teaching guide. Respond in this EXACT JSON format only (no other text):
+Create a complete, ready-to-use textbook unit structured into ${numLessons} lesson(s)/차시. AND a teaching guide. Respond in this EXACT JSON format only (no other text):
 
 {
   "title": "Unit title here",
