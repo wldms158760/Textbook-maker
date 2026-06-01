@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Curriculum Craft — AI Textbook Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,500;0,700;1,300&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+:root {
+  --ink: #1a1a2e;
+  --paper: #faf7f2;
+  --cream: #f0ebe0;
+  --gold: #c9a84c;
+  --sage: #4a7c59;
+  --sage-light: #d4e6da;
+  --rust: #b85c38;
+  --rust-light: #f5ddd5;
+  --sky: #3a6b8a;
+  --sky-light: #d0e4ef;
+  --border: #d4cfc4;
+  --muted: #8a8478;
+  --shadow: 0 4px 24px rgba(26,26,46,0.08);
+  --radius: 16px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--paper); color: var(--ink); min-height: 100vh; }
+
+.header {
+  background: var(--ink); padding: 20px 40px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+}
+.logo { font-family: 'Fraunces', serif; font-size: 24px; color: var(--gold); }
+.logo span { color: #fff; font-weight: 300; font-style: italic; }
+.header-sub { font-size: 12px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+
+.steps {
+  display: flex; align-items: center;
+  background: var(--cream); border-bottom: 1px solid var(--border);
+  padding: 0 40px; overflow-x: auto;
+}
+.step {
+  display: flex; align-items: center; gap: 10px;
+  padding: 16px 20px; font-size: 13px; font-weight: 500;
+  color: var(--muted); white-space: nowrap;
+  border-bottom: 2px solid transparent; transition: all 0.2s;
+}
+.step.active { color: var(--ink); border-bottom-color: var(--gold); }
+.step.done { color: var(--sage); }
+.step-num {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--border); display: flex; align-items: center;
+  justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0;
+}
+.step.active .step-num { background: var(--gold); color: white; }
+.step.done .step-num { background: var(--sage); color: white; }
+.step-arrow { color: var(--border); font-size: 12px; }
+
+.main { max-width: 860px; margin: 0 auto; padding: 48px 24px 80px; }
+
+.card {
+  background: white; border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 36px; margin-bottom: 24px;
+  box-shadow: var(--shadow); display: none;
+}
+.card.active { display: block; animation: fadeUp 0.4s ease; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+
+.card-title { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 500; margin-bottom: 8px; line-height: 1.2; }
+.card-desc { font-size: 15px; color: var(--muted); line-height: 1.6; margin-bottom: 28px; }
+
+.upload-area {
+  border: 2px dashed var(--border); border-radius: 12px;
+  padding: 48px 32px; text-align: center; cursor: pointer;
+  transition: all 0.2s; background: var(--paper);
+}
+.upload-area:hover, .upload-area.drag-over { border-color: var(--gold); background: #fdf9f0; }
+.upload-icon { font-size: 40px; margin-bottom: 12px; }
+.upload-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.upload-sub { font-size: 13px; color: var(--muted); }
+.upload-formats { display: flex; gap: 8px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+.fmt-badge { background: var(--cream); border: 1px solid var(--border); border-radius: 6px; padding: 4px 12px; font-size: 12px; font-weight: 600; color: var(--muted); }
+#file-input { display: none; }
+
+.or-divider { display: flex; align-items: center; gap: 16px; margin: 20px 0; color: var(--muted); font-size: 13px; }
+.or-divider::before, .or-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+textarea {
+  width: 100%; min-height: 180px; border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px 20px;
+  font-family: 'DM Sans', sans-serif; font-size: 14px; line-height: 1.7;
+  color: var(--ink); background: var(--paper); resize: vertical; transition: border-color 0.2s;
+}
+textarea:focus { outline: none; border-color: var(--gold); }
+
+.file-preview { display: none; align-items: center; gap: 12px; padding: 14px 18px; background: var(--sage-light); border: 1px solid var(--sage); border-radius: 10px; margin-top: 16px; }
+.file-preview.visible { display: flex; }
+.file-preview-name { font-size: 14px; font-weight: 500; color: var(--sage); flex: 1; }
+.file-remove { background: none; border: none; cursor: pointer; color: var(--rust); font-size: 18px; }
+
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.field label { font-size: 13px; font-weight: 600; color: var(--ink); letter-spacing: 0.3px; }
+.field input, .field select {
+  border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px;
+  font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--ink);
+  background: var(--paper); transition: border-color 0.2s;
+}
+.field input:focus, .field select:focus { outline: none; border-color: var(--gold); }
+
+.subject-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+.subject-btn {
+  padding: 10px 24px; border-radius: 99px; border: 2px solid var(--border);
+  font-size: 14px; font-weight: 600; cursor: pointer; background: white;
+  color: var(--muted); transition: all 0.15s;
+}
+.subject-btn:hover { border-color: var(--gold); color: var(--ink); }
+.subject-btn.selected { background: var(--ink); border-color: var(--ink); color: var(--gold); }
+
+.sample-sentences { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+.sample-item { border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; background: var(--paper); }
+.sample-item-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 12px; }
+.sample-text { font-size: 15px; line-height: 1.6; flex: 1; }
+.difficulty-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0; }
+.level-options { display: flex; gap: 8px; flex-wrap: wrap; }
+.level-btn {
+  padding: 6px 14px; border-radius: 99px; border: 1.5px solid var(--border);
+  font-size: 12px; font-weight: 600; cursor: pointer; background: white;
+  color: var(--muted); transition: all 0.15s;
+}
+.level-btn:hover { border-color: var(--gold); color: var(--ink); }
+.level-btn.selected-too-easy { background: var(--rust-light); border-color: var(--rust); color: var(--rust); }
+.level-btn.selected-just-right { background: var(--sage-light); border-color: var(--sage); color: var(--sage); }
+.level-btn.selected-too-hard { background: var(--sky-light); border-color: var(--sky); color: var(--sky); }
+
+.level-summary { background: var(--cream); border-radius: 10px; padding: 14px 18px; font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.6; display: none; }
+.level-summary.visible { display: block; }
+
+.info-box { background: var(--sky-light); border: 1px solid var(--sky); border-radius: 10px; padding: 14px 18px; font-size: 13px; color: var(--sky); line-height: 1.6; margin-bottom: 20px; }
+.error-box { background: var(--rust-light); border: 1px solid var(--rust); border-radius: 10px; padding: 14px 18px; font-size: 13px; color: var(--rust); line-height: 1.6; margin-bottom: 20px; display: none; }
+.error-box.visible { display: block; }
+
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.15s; border: none; }
+.btn-primary { background: var(--ink); color: var(--gold); }
+.btn-primary:hover { background: #2d2d4e; transform: translateY(-1px); }
+.btn-secondary { background: white; color: var(--ink); border: 1.5px solid var(--border); }
+.btn-secondary:hover { border-color: var(--ink); }
+.btn-gold { background: var(--gold); color: white; }
+.btn-gold:hover { background: #b8943e; transform: translateY(-1px); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+.btn-row { display: flex; gap: 12px; align-items: center; justify-content: flex-end; margin-top: 28px; flex-wrap: wrap; }
+
+.loading-overlay { display: none; position: fixed; inset: 0; background: rgba(26,26,46,0.6); z-index: 200; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+.loading-overlay.visible { display: flex; }
+.loading-box { background: white; border-radius: var(--radius); padding: 48px; text-align: center; max-width: 360px; width: 90%; }
+.loading-spinner { width: 48px; height: 48px; border: 3px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 20px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-title { font-family: 'Fraunces', serif; font-size: 20px; margin-bottom: 8px; }
+.loading-sub { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+.output-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 28px; }
+.output-tab { padding: 12px 24px; font-size: 14px; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; color: var(--muted); transition: all 0.15s; background: none; border-top: none; border-left: none; border-right: none; }
+.output-tab.active { color: var(--ink); border-bottom-color: var(--gold); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.textbook-output { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.textbook-chapter { padding: 28px 32px; border-bottom: 1px solid var(--border); }
+.textbook-chapter:last-child { border-bottom: none; }
+.chapter-label { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); margin-bottom: 8px; }
+.chapter-title { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 500; margin-bottom: 16px; }
+.chapter-body { font-size: 14px; line-height: 1.8; color: #3a3a3a; white-space: pre-wrap; }
+
+.teaching-guide { display: flex; flex-direction: column; gap: 16px; }
+.guide-item { border-left: 3px solid var(--gold); padding: 16px 20px; background: var(--paper); border-radius: 0 10px 10px 0; }
+.guide-item-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gold); margin-bottom: 8px; }
+.guide-item-body { font-size: 14px; line-height: 1.7; color: #3a3a3a; white-space: pre-wrap; }
+
+.download-bar { background: var(--ink); border-radius: 12px; padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+.download-bar-text { color: white; font-size: 14px; }
+.download-bar-text strong { color: var(--gold); display: block; font-size: 16px; margin-bottom: 2px; }
+.download-btns { display: flex; gap: 10px; }
+.btn-download { padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
+.btn-dl-pdf { background: var(--gold); color: white; }
+.btn-dl-pdf:hover { background: #b8943e; }
+.btn-dl-html { background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); }
+.btn-dl-html:hover { background: rgba(255,255,255,0.2); }
+
+@media (max-width: 640px) {
+  .main { padding: 24px 16px 60px; }
+  .card { padding: 24px 20px; }
+  .field-row { grid-template-columns: 1fr; }
+  .header { padding: 16px 20px; }
+  .steps { padding: 0 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading">
+  <div class="loading-box">
+    <div class="loading-spinner"></div>
+    <div class="loading-title" id="loading-title">Processing…</div>
+    <div class="loading-sub" id="loading-sub">Please wait a moment.</div>
+  </div>
+</div>
+
+<header class="header">
+  <div>
+    <div class="logo">Curriculum <span>Craft</span></div>
+    <div class="header-sub">AI Textbook Generator for Teachers</div>
+  </div>
+</header>
+
+<nav class="steps">
+  <div class="step active" id="step-1"><span class="step-num">1</span> Upload Curriculum</div>
+  <div class="step-arrow">›</div>
+  <div class="step" id="step-2"><span class="step-num">2</span> Class Info</div>
+  <div class="step-arrow">›</div>
+  <div class="step" id="step-3"><span class="step-num">3</span> Student Level</div>
+  <div class="step-arrow">›</div>
+  <div class="step" id="step-4"><span class="step-num">4</span> Your Textbook</div>
+</nav>
+
+<main class="main">
+
+  <!-- STEP 1 -->
+  <div class="card active" id="card-1">
+    <div class="card-title">Upload Your National Curriculum</div>
+    <div class="card-desc">Upload your country's official curriculum document, or paste the text directly. Supported formats: PDF, Word (.docx), and plain text.</div>
+
+    <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()">
+      <div class="upload-icon">📄</div>
+      <div class="upload-title">Drop your curriculum file here</div>
+      <div class="upload-sub">or click to browse</div>
+      <div class="upload-formats">
+        <span class="fmt-badge">PDF</span>
+        <span class="fmt-badge">DOCX</span>
+        <span class="fmt-badge">TXT</span>
+      </div>
+    </div>
+    <input type="file" id="file-input" accept=".pdf,.docx,.txt">
+
+    <div class="file-preview" id="file-preview">
+      <span>📎</span>
+      <span class="file-preview-name" id="file-name"></span>
+      <button class="file-remove" onclick="removeFile()">✕</button>
+    </div>
+
+    <div class="or-divider">or paste text directly</div>
+    <textarea id="curriculum-text" placeholder="Paste your curriculum content here…"></textarea>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="goToStep2()">Next: Class Info →</button>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="card" id="card-2">
+    <div class="card-title">Tell Us About Your Class</div>
+    <div class="card-desc">Help us tailor the textbook and teaching guidance to your specific context.</div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Country / Region</label>
+        <select id="country">
+          <option value="">Select country…</option>
+          <option value="Philippines">Philippines</option>
+          <option value="Myanmar">Myanmar</option>
+          <option value="Thailand (Mae Sot border area)">Thailand (Mae Sot border area)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Language of Instruction</label>
+        <select id="language">
+          <option value="">Select language…</option>
+          <option value="English">English</option>
+          <option value="Filipino (Tagalog)">Filipino (Tagalog)</option>
+          <option value="Burmese">Burmese (မြန်မာဘာသာ)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Grade / Year Level</label>
+        <input type="text" id="grade" placeholder="e.g. Grade 1, Year 3">
+      </div>
+      <div class="field">
+        <label>Number of Lessons</label>
+        <input type="number" id="num-lessons" placeholder="e.g. 10" min="1" max="100">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Number of Students</label>
+        <input type="number" id="num-students" placeholder="e.g. 30" min="1">
+      </div>
+      <div class="field">
+        <label>Teaching Experience</label>
+        <select id="experience">
+          <option value="">Select…</option>
+          <option value="new">New teacher (0–2 years)</option>
+          <option value="some">Some experience (3–5 years)</option>
+          <option value="experienced">Experienced (6+ years)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Subject</label>
+      <div class="subject-btns" id="subject-btns">
+        <button class="subject-btn" onclick="selectSubject('Language', this)">📖 Language</button>
+        <button class="subject-btn" onclick="selectSubject('Mathematics', this)">🔢 Mathematics</button>
+        <button class="subject-btn" onclick="selectSubject('Science', this)">🔬 Science</button>
+      </div>
+      <input type="hidden" id="subject" value="">
+    </div>
+
+    <div class="field">
+      <label>Additional context about your students or classroom</label>
+      <textarea id="context" style="min-height:90px" placeholder="e.g. Many students are refugees with interrupted schooling. Limited device access. Mixed language backgrounds."></textarea>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goToStep(1)">← Back</button>
+      <button class="btn btn-primary" onclick="goToStep3()">Next: Check Student Level →</button>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="card" id="card-3">
+    <div class="card-title">Check Your Students' Level</div>
+    <div class="card-desc">Here are 5 exercises drawn directly from your uploaded curriculum. Please estimate how your students would handle each one — this helps us calibrate the textbook difficulty perfectly.</div>
+
+    <div class="info-box">💡 You know your students best. Even a rough estimate helps us create a much better-fit textbook.</div>
+    <div class="error-box" id="sample-error"></div>
+
+    <div class="sample-sentences" id="sample-sentences">
+      <div style="text-align:center; padding: 40px; color: var(--muted);">Generating exercises from your curriculum…</div>
+    </div>
+
+    <div class="level-summary" id="level-summary"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goToStep(2)">← Back</button>
+      <button class="btn btn-gold" id="generate-btn" onclick="generateTextbook()" disabled>✨ Generate Textbook</button>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="card" id="card-4">
+    <div class="download-bar">
+      <div class="download-bar-text">
+        <strong id="textbook-title-display">Your Textbook</strong>
+        Ready to use in your classroom
+      </div>
+      <div class="download-btns">
+        <button class="btn-download btn-dl-html" onclick="downloadHTML()">⬇ Download HTML</button>
+        <button class="btn-download btn-dl-pdf" onclick="window.print()">🖨 Print / PDF</button>
+      </div>
+    </div>
+
+    <div class="output-tabs">
+      <button class="output-tab active" onclick="switchTab('textbook', this)">📖 Textbook</button>
+      <button class="output-tab" onclick="switchTab('teaching', this)">🎓 Teaching Guide</button>
+    </div>
+
+    <div class="tab-content active" id="tab-textbook">
+      <div class="textbook-output" id="textbook-output"></div>
+    </div>
+    <div class="tab-content" id="tab-teaching">
+      <div class="teaching-guide" id="teaching-output"></div>
+    </div>
+
+    <div class="btn-row" style="margin-top:32px;">
+      <button class="btn btn-secondary" onclick="goToStep(1)">← Start Over</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+let curriculumContent = '';
+let sampleData = [];
+let levelResponses = {};
+let selectedSubject = '';
+
+// ── File upload ──
+document.getElementById('upload-area').addEventListener('dragover', e => { e.preventDefault(); e.currentTarget.classList.add('drag-over'); });
+document.getElementById('upload-area').addEventListener('dragleave', e => e.currentTarget.classList.remove('drag-over'));
+document.getElementById('upload-area').addEventListener('drop', e => {
+  e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+document.getElementById('file-input').addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+async function handleFile(file) {
+  document.getElementById('file-name').textContent = file.name;
+  document.getElementById('file-preview').classList.add('visible');
+  showLoading('Reading file…', 'Extracting text from your document.');
+  try {
+    if (file.type === 'text/plain') {
+      curriculumContent = await file.text();
+    } else if (file.name.toLowerCase().endsWith('.docx')) {
+      const buf = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer: buf });
+      curriculumContent = result.value;
+    } else if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+      curriculumContent = await extractPdfText(file);
+    }
+    if (curriculumContent) {
+      document.getElementById('curriculum-text').value = curriculumContent.slice(0, 3000) + (curriculumContent.length > 3000 ? '\n\n[… truncated for display …]' : '');
+    }
+  } catch(e) {
+    alert('Could not read the file. Please try pasting the text directly.');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function extractPdfText(file) {
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let text = '';
+  for (let i = 1; i <= Math.min(pdf.numPages, 15); i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(s => s.str).join(' ') + '\n';
+  }
+  return text;
+}
+
+function removeFile() {
+  curriculumContent = '';
+  document.getElementById('file-preview').classList.remove('visible');
+  document.getElementById('file-name').textContent = '';
+  document.getElementById('curriculum-text').value = '';
+  document.getElementById('file-input').value = '';
+}
+
+// ── Subject selector ──
+function selectSubject(name, btn) {
+  selectedSubject = name;
+  document.getElementById('subject').value = name;
+  document.querySelectorAll('.subject-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+}
+
+// ── Loading ──
+function showLoading(title, sub) {
+  document.getElementById('loading-title').textContent = title || 'Processing…';
+  document.getElementById('loading-sub').textContent = sub || 'Please wait.';
+  document.getElementById('loading').classList.add('visible');
+}
+function hideLoading() {
+  document.getElementById('loading').classList.remove('visible');
+}
+
+// ── Navigation ──
+function goToStep(n) {
+  document.querySelectorAll('.card').forEach((c, i) => c.classList.toggle('active', i + 1 === n));
+  document.querySelectorAll('.step').forEach((s, i) => {
+    s.classList.remove('active', 'done');
+    if (i + 1 === n) s.classList.add('active');
+    if (i + 1 < n) s.classList.add('done');
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function goToStep2() {
+  const text = document.getElementById('curriculum-text').value.trim();
+  if (!text && !curriculumContent) { alert('Please upload a file or paste curriculum text first.'); return; }
+  if (text) curriculumContent = text;
+  goToStep(2);
+}
+
+async function goToStep3() {
+  const country = document.getElementById('country').value.trim();
+  const grade = document.getElementById('grade').value.trim();
+  const subject = document.getElementById('subject').value;
+  if (!country) { alert('Please enter a Country / Region.'); return; }
+  if (!grade) { alert('Please enter a Grade / Year Level.'); return; }
+  if (!subject) { alert('Please select a Subject.'); return; }
+  goToStep(3);
+  await generateSamples();
+}
+
+// ── Claude API ──
+async function callClaude(prompt, maxTokens) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: maxTokens || 1000,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  if (!res.ok) {
+    let errMsg = 'API error ' + res.status;
+    try { const e = await res.json(); errMsg = e.error?.message || errMsg; } catch(e) {}
+    throw new Error(errMsg);
+  }
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'API returned error');
+  const text = data.content?.find(b => b.type === 'text')?.text || '';
+  if (!text) throw new Error('Empty response from API');
+  return text;
+}
+
+function extractJSON(raw) {
+  // Try direct parse first
+  try { return JSON.parse(raw); } catch(e) {}
+  // Strip markdown fences
+  const stripped = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+  try { return JSON.parse(stripped); } catch(e) {}
+  // Find first [ or { to last ] or }
+  const arrMatch = stripped.match(/(\[[\s\S]*\])/);
+  if (arrMatch) { try { return JSON.parse(arrMatch[1]); } catch(e) {} }
+  const objMatch = stripped.match(/(\{[\s\S]*\})/);
+  if (objMatch) { try { return JSON.parse(objMatch[1]); } catch(e) {} }
+  throw new Error('Could not parse JSON from response');
+}
+
+// ── Generate samples ──
+async function generateSamples() {
+  sampleData = [];
+  levelResponses = {};
+  document.getElementById('generate-btn').disabled = true;
+  document.getElementById('level-summary').classList.remove('visible');
+  document.getElementById('sample-error').classList.remove('visible');
+  document.getElementById('sample-sentences').innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);">Generating exercises from your curriculum…</div>';
+
+  const grade = document.getElementById('grade').value;
+  const subject = document.getElementById('subject').value;
+  const language = document.getElementById('language').value || 'English';
+  const snippet = curriculumContent.slice(0, 2500);
+
+  const prompt = `You are an expert educator. A teacher has uploaded a ${subject} curriculum for ${grade} students.
+
+CURRICULUM CONTENT:
+---
+${snippet}
+---
+
+Your task: Generate exactly 5 practice exercises that come DIRECTLY from the content above.
+- Subject is ${subject} — make exercises appropriate for this subject ONLY
+- Write all exercises in ${language}
+- 2 basic, 2 intermediate, 1 challenging
+- Each exercise should be something a student actively does (answers, solves, writes, matches)
+- Base everything on the actual topics in the curriculum above
+
+Return ONLY a valid JSON array. No explanation, no markdown, no extra text. Just the JSON:
+[
+  {"id":1,"text":"exercise text here","difficulty":"basic"},
+  {"id":2,"text":"exercise text here","difficulty":"basic"},
+  {"id":3,"text":"exercise text here","difficulty":"intermediate"},
+  {"id":4,"text":"exercise text here","difficulty":"intermediate"},
+  {"id":5,"text":"exercise text here","difficulty":"challenging"}
+]`;
+
+  try {
+    showLoading('Generating exercises…', 'Analyzing your curriculum to create subject-specific practice items.');
+    const raw = await callClaude(prompt, 1000);
+    hideLoading();
+    sampleData = extractJSON(raw);
+    if (!Array.isArray(sampleData) || sampleData.length === 0) throw new Error('Invalid sample data');
+    renderSamples();
+  } catch(e) {
+    hideLoading();
+    console.error('Sample generation error:', e);
+    // Show friendly error but still allow fallback samples
+    const errBox = document.getElementById('sample-error');
+    errBox.textContent = '⚠️ Could not generate custom exercises. Showing generic samples instead.';
+    errBox.classList.add('visible');
+    sampleData = getFallbackSamples(subject);
+    renderSamples();
+  }
+}
+
+function getFallbackSamples(subject) {
+  if (subject === 'Mathematics') return [
+    {id:1, text:'Write the numbers 1 to 10 in order.', difficulty:'basic'},
+    {id:2, text:'Solve: 5 + 3 = ?', difficulty:'basic'},
+    {id:3, text:'A farmer has 12 eggs. He sells 4. How many are left?', difficulty:'intermediate'},
+    {id:4, text:'Fill in: 7 + __ = 15', difficulty:'intermediate'},
+    {id:5, text:'Maria has 20 mangoes. She gives half to her neighbour. How many does she have now?', difficulty:'challenging'}
+  ];
+  if (subject === 'Science') return [
+    {id:1, text:'Name two things that plants need to grow.', difficulty:'basic'},
+    {id:2, text:'Is a rock living or non-living? Why?', difficulty:'basic'},
+    {id:3, text:'What happens to water when it is heated?', difficulty:'intermediate'},
+    {id:4, text:'Explain why we need to wash our hands before eating.', difficulty:'intermediate'},
+    {id:5, text:'How does the sun help plants make food? Explain in 2-3 sentences.', difficulty:'challenging'}
+  ];
+  return [
+    {id:1, text:'Read aloud: "The sun rises in the morning."', difficulty:'basic'},
+    {id:2, text:'Write 3 words that start with the letter "B".', difficulty:'basic'},
+    {id:3, text:'Write one sentence about your family.', difficulty:'intermediate'},
+    {id:4, text:'Read the sentence and answer: "The girl ran to school because she was late." Why did the girl run?', difficulty:'intermediate'},
+    {id:5, text:'Write a short paragraph (3–4 sentences) about something you did yesterday.', difficulty:'challenging'}
+  ];
+}
+
+function renderSamples() {
+  const diffLabels = { basic:'Basic', intermediate:'Intermediate', challenging:'Challenging' };
+  document.getElementById('sample-sentences').innerHTML = sampleData.map((s, i) => `
+    <div class="sample-item" id="sample-${s.id}">
+      <div class="sample-item-header">
+        <div class="sample-text"><strong>${i+1}.</strong> ${s.text}</div>
+        <div class="difficulty-label">${diffLabels[s.difficulty] || s.difficulty}</div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">How would most of your students handle this?</div>
+      <div class="level-options">
+        <button class="level-btn" onclick="selectLevel(${s.id},'too-easy',this)">😊 Too easy</button>
+        <button class="level-btn" onclick="selectLevel(${s.id},'just-right',this)">✅ About right</button>
+        <button class="level-btn" onclick="selectLevel(${s.id},'too-hard',this)">😓 Too hard</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectLevel(id, level, btn) {
+  document.getElementById('sample-' + id).querySelectorAll('.level-btn').forEach(b => b.className = 'level-btn');
+  btn.classList.add('selected-' + level);
+  levelResponses[id] = level;
+  updateLevelSummary();
+}
+
+function updateLevelSummary() {
+  const answered = Object.keys(levelResponses).length;
+  const total = sampleData.length;
+  const tooHard = Object.values(levelResponses).filter(v => v === 'too-hard').length;
+  const tooEasy = Object.values(levelResponses).filter(v => v === 'too-easy').length;
+  const summary = document.getElementById('level-summary');
+  if (answered === 0) { summary.classList.remove('visible'); return; }
+  let note = tooHard >= 3 ? '📊 Students need more support — we\'ll add more scaffolding and simpler language.'
+           : tooEasy >= 3 ? '📊 Students are ahead — we\'ll add enrichment and extension activities.'
+           : '📊 Good balance! We\'ll pitch the textbook at just the right level.';
+  summary.textContent = `${answered}/${total} assessed. ${note}`;
+  summary.classList.add('visible');
+  if (answered >= total) document.getElementById('generate-btn').disabled = false;
+}
+
+// ── Generate textbook ──
+async function generateTextbook() {
+  const grade = document.getElementById('grade').value;
+  const subject = document.getElementById('subject').value;
+  const language = document.getElementById('language').value || 'English';
+  const country = document.getElementById('country').value;
+  const experience = document.getElementById('experience').value;
+  const context = document.getElementById('context').value;
+  const numStudents = document.getElementById('num-students').value;
+  const numLessons = document.getElementById('num-lessons').value || '1';
+
+  const tooHard = Object.values(levelResponses).filter(v => v === 'too-hard').length;
+  const tooEasy = Object.values(levelResponses).filter(v => v === 'too-easy').length;
+  const levelNote = tooHard >= 3 ? 'below curriculum level — simplify language, add more scaffolding'
+                  : tooEasy >= 3 ? 'above curriculum level — add enrichment activities'
+                  : 'at curriculum level';
+
+  const expLabel = {new:'new teacher (0–2 years)', some:'some experience (3–5 years)', experienced:'experienced (6+ years)'}[experience] || 'teacher';
+  const snippet = curriculumContent.slice(0, 3000);
+
+  const lessonCount = Math.max(1, Math.min(parseInt(numLessons) || 1, 5));
+  const snippetShort = curriculumContent.slice(0, 1200);
+
+  // Build chapters array spec
+  const chaptersSpec = Array.from({length: lessonCount}, (_, i) =>
+    `{"label":"Lesson ${i+1}","title":"[lesson ${i+1} title]","body":"[explanation + 2 examples + 3 exercises in ${language}, relevant to ${country}]"}`
+  ).join(',');
+
+  const prompt = `Create a school textbook unit as JSON only. No markdown. No extra text. Pure JSON.
+
+Context: ${grade} ${subject} in ${language}. Country: ${country}. Student level: ${levelNote}. Teacher: ${expLabel}.
+
+Curriculum excerpt: ${snippetShort}
+
+Return this exact JSON structure with ${lessonCount} lesson(s):
+{"title":"[unit title]","chapters":[${chaptersSpec}],"teachingGuide":[{"title":"Learning Objectives","body":"[2-3 objectives]"},{"title":"Teaching Methods","body":"[practical strategies]"},{"title":"Assessment","body":"[simple checks]"}]}`;
+
+  try {
+    showLoading('Generating your textbook…', 'Please wait, this takes about 20–40 seconds.');
+    const raw = await callClaude(prompt, 3000);
+    hideLoading();
+    let result;
+    try {
+      result = extractJSON(raw);
+    } catch(parseErr) {
+      console.error('Parse error, raw response:', raw.slice(0, 500));
+      throw new Error('Could not read the generated content. Please try again.');
+    }
+    if (!result || !result.chapters || result.chapters.length === 0) {
+      throw new Error('Textbook content was empty. Please try again.');
+    }
+    // Ensure teachingGuide exists
+    if (!result.teachingGuide) result.teachingGuide = [];
+    renderOutput(result);
+    goToStep(4);
+  } catch(e) {
+    hideLoading();
+    console.error('Textbook generation error:', e);
+    alert('Error: ' + e.message + '\n\nTip: Try with fewer lessons (1-3) or shorter curriculum text.');
+  }
+}
+
+function renderOutput(data) {
+  document.getElementById('textbook-title-display').textContent = data.title || 'Your Textbook';
+  document.getElementById('textbook-output').innerHTML = data.chapters.map(ch => `
+    <div class="textbook-chapter">
+      <div class="chapter-label">${ch.label || ''}</div>
+      <div class="chapter-title">${ch.title || ''}</div>
+      <div class="chapter-body">${ch.body || ''}</div>
+    </div>
+  `).join('');
+  document.getElementById('teaching-output').innerHTML = data.teachingGuide.map(g => `
+    <div class="guide-item">
+      <div class="guide-item-title">${g.title || ''}</div>
+      <div class="guide-item-body">${g.body || ''}</div>
+    </div>
+  `).join('');
+  window._outputData = data;
+}
+
+function switchTab(tab, btn) {
+  document.querySelectorAll('.output-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+}
+
+function downloadHTML() {
+  const d = window._outputData;
+  if (!d) return;
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${d.title}</title>
+<style>body{font-family:Georgia,serif;max-width:800px;margin:40px auto;padding:0 24px;color:#222;line-height:1.8}h1{font-size:32px;margin-bottom:8px;color:#1a1a2e}h2{font-size:22px;margin:32px 0 12px;color:#1a1a2e}h3{font-size:13px;color:#c9a84c;text-transform:uppercase;letter-spacing:1px;margin:24px 0 8px}.chapter{border-bottom:1px solid #eee;padding-bottom:32px;margin-bottom:32px}.guide{border-left:3px solid #c9a84c;padding:16px 20px;margin-bottom:16px;background:#faf7f2}p{margin-bottom:12px}</style>
+</head><body>
+<h1>${d.title}</h1>
+${d.chapters.map(c=>`<div class="chapter"><h3>${c.label}</h3><h2>${c.title}</h2>${c.body.split('\n').map(l=>`<p>${l}</p>`).join('')}</div>`).join('')}
+<h1>Teaching Guide</h1>
+${d.teachingGuide.map(g=>`<div class="guide"><h3>${g.title}</h3>${g.body.split('\n').map(l=>`<p>${l}</p>`).join('')}</div>`).join('')}
+</body></html>`;
+  const a = document.createElement('a');
+  a.href = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+  a.download = (d.title || 'textbook').replace(/\s+/g,'-') + '.html';
+  a.click();
+}
+</script>
+</body>
+</html>
